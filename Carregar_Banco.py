@@ -1,53 +1,60 @@
-# inovisao/pytorch-image-classifier-modified/PyTorch-Image-Classifier-Modified-6c1f37d06b3109ac99d998fb9e88472d171d7930/Carregar_Banco.py
-# --- CONTEÚDO MODIFICADO ---
-
+"""
+    Arquivo para configuração e carregamento do banco de imagens a partir do Google Drive.
+"""
 import gdown
-import zipfile
 import os
+import shutil
 
-# --- COLE O LINK COMPARTILHÁVEL DO SEU ARQUIVO .ZIP AQUI ---
-# Exemplo: 'https://drive.google.com/uc?id=SEU_ID_AQUI'
-DRIVE_FILE_URL = "https://drive.google.com/drive/folders/17WIevxTC0ubQfR7DLpP_KxmLTZsyDe6k?usp=sharing"
+# --- CONFIGURAÇÃO ---
+# 1. Cole o link da sua pasta COMPARTILHADA do Google Drive aqui.
+#    Lembre-se: em "Acesso geral", deve estar como "Qualquer pessoa com o link".
 
-# Nome do arquivo zip que será baixado
-output_zip_file = "bd_dedos.zip"
+google_drive_url = "https://drive.google.com/drive/folders/17WIevxTC0ubQfR7DLpP_KxmLTZsyDe6k?usp=drive_link"
 
-# Pasta onde o conteúdo será extraído
-pasta_banco_imagens = "./bd_dedos/"
+# 2. Nome da pasta que será criada localmente para armazenar as imagens.
+#    É esta pasta que você deve apagar se precisar baixar os dados novamente.
+pasta_banco_imagens = "bd_imagens_drive"
 
-# Função para baixar e extrair o banco de imagens
-def preparar_banco_de_imagens():
-    """
-    Verifica se o banco de imagens já existe, caso contrário,
-    baixa do Google Drive e o extrai.
-    """
-    if os.path.exists(pasta_banco_imagens):
-        print(f"O diretório '{pasta_banco_imagens}' já existe. Pulando o download.")
-        return
+# --- LÓGICA DE DOWNLOAD ---
 
+# IMPORTANTE: Se você atualizar sua pasta no Google Drive (adicionar/remover imagens),
+# apague a pasta "bd_imagens_drive" do seu computador manualmente para forçar
+# o download da nova versão na próxima vez que executar o script.
+
+# Verifica se a pasta de imagens já foi baixada
+if not os.path.exists(pasta_banco_imagens):
+    print(f"A pasta '{pasta_banco_imagens}' não foi encontrada localmente.")
+    print(f"Baixando o banco de imagens de: {google_drive_url}")
+    
     try:
-        print(f"Baixando o banco de imagens de: {DRIVE_FILE_URL}")
-        # Baixa o arquivo do Google Drive
-        gdown.download(DRIVE_FILE_URL, output_zip_file, quiet=False)
-        print("Download concluído com sucesso!")
-
-        print(f"Extraindo '{output_zip_file}' para '{pasta_banco_imagens}'...")
-        # Extrai o arquivo .zip
-        with zipfile.ZipFile(output_zip_file, 'r') as zip_ref:
-            zip_ref.extractall("./")  # Extrai na raiz
-        print("Extração concluída!")
-
-        # Opcional: remove o arquivo .zip após a extração
-        os.remove(output_zip_file)
-
+        # Faz o download da pasta do Google Drive
+        gdown.download_folder(google_drive_url, output=pasta_banco_imagens, quiet=False, use_cookies=False)
+        print("\nDownload concluído com sucesso!")
     except Exception as e:
-        print(f"Ocorreu um erro ao baixar ou extrair o arquivo: {e}")
+        print(f"\nOcorreu um erro durante o download: {e}")
+        print("Verifique se o link do Google Drive está correto e se as permissões de compartilhamento estão como 'Qualquer pessoa com o link'.")
+        # Se o download falhar, remove a pasta parcialmente criada para evitar erros futuros.
+        if os.path.exists(pasta_banco_imagens):
+            shutil.rmtree(pasta_banco_imagens)
+        exit() # Encerra o script se o download falhar
+else:
+    print(f"O banco de imagens '{pasta_banco_imagens}' já existe localmente. Usando a versão em cache.")
+    print("(Para baixar novamente, apague a pasta localmente e rode o script de novo.)")
 
-# Variáveis que serão usadas pelos outros scripts
+
+# --- DEFINIÇÃO DOS CAMINHOS PARA A REDE NEURAL ---
+
+# Define os caminhos que serão usados pelo PyTorchRN.py para encontrar as imagens de treino e validação.
 pasta_raiz = "./"
-pasta_treino = os.path.join(pasta_banco_imagens, "train")
-pasta_validacao = os.path.join(pasta_banco_imagens, "test")
+pasta_treino = os.path.join(pasta_raiz, pasta_banco_imagens, "train")
+pasta_validacao = os.path.join(pasta_raiz, pasta_banco_imagens, "test")
 
-# Executa a função de preparação ao carregar o módulo
-preparar_banco_de_imagens()
-print(f"Leitura das imagens configurada para o repositório: {pasta_banco_imagens}")
+# Verifica se os caminhos de treino e validação existem antes de prosseguir
+if not os.path.exists(pasta_treino) or not os.path.exists(pasta_validacao):
+    print("\nERRO: As pastas 'train' e 'test' não foram encontradas dentro do diretório baixado.")
+    print(f"Verifique a estrutura da sua pasta no Google Drive. Ela deve conter subpastas chamadas 'train' e 'test'.")
+    exit()
+
+print(f"\nLeitura das imagens configurada:")
+print(f"  - Pasta de treino:    {pasta_treino}")
+print(f"  - Pasta de validação: {pasta_validacao}")

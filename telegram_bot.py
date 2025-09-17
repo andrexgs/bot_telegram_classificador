@@ -1,86 +1,80 @@
-# telegram_bot.py
-
-import os
 import logging
+import os
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, MessageHandler, filters, ContextTypes
-import PyTorchRN  # Importa seu script modificado
 
-# Configure o logging para ver erros
+# Importa as funções do nosso script de RN
+import PyTorchRN as rn
+
+# Configura o logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# --- COLOQUE SEU TOKEN AQUI ---
-TELEGRAM_BOT_TOKEN = "7538688960:AAGJjkFnHu0AMLUeGDG6DmhzUVSD68abFgo" 
+# --- Funções de Comando para o Bot ---
 
-# Função para o comando /start
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await context.bot.send_message(
-        chat_id=update.effective_chat.id,
-        text="Olá! Sou um bot de classificação de imagens.\n\n"
-             "Envie o comando /treinar para iniciar o aprendizado da rede neural.\n\n"
-             "Ou me envie uma imagem para que eu possa classificá-la!"
+    """Envia uma mensagem de boas-vindas."""
+    user = update.effective_user
+    await update.message.reply_html(
+        f"Olá, {user.mention_html()}!\n\n"
+        "Eu sou um bot classificador de imagens com PyTorch.\n\n"
+        "<b>Comandos disponíveis:</b>\n"
+        "  - /train : Inicia o treinamento da rede neural.\n"
+        "  - /test : Avalia o modelo treinado no conjunto de teste.\n"
+        "  - Envie uma imagem para classificá-la (após o treino)."
     )
 
-# Função para o comando /treinar
-async def treinar_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    await context.bot.send_message(chat_id=chat_id, text="Iniciando o treinamento... Isso pode levar vários minutos. Por favor, aguarde.")
+async def train_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Inicia o processo de treinamento e envia atualizações."""
+    await update.message.reply_text("✅ Comando recebido. O treinamento será iniciado em segundo plano...")
     
-    try:
-        # Chama a função de treinamento do seu script
-        resultado = PyTorchRN.iniciar_treinamento()
-        await context.bot.send_message(chat_id=chat_id, text=resultado)
-    except Exception as e:
-        logging.error(f"Erro durante o treinamento: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=f"Ocorreu um erro durante o treinamento: {e}")
+    # A função de treinamento agora é assíncrona e envia as mensagens
+    resultado_final = await rn.iniciar_treinamento(update, context)
+    
+    await update.message.reply_text(resultado_final)
 
-# Função para lidar com imagens recebidas
-async def image_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    chat_id = update.effective_chat.id
-    try:
-        # Pega a foto de melhor resolução
-        photo_file = await update.message.photo[-1].get_file()
-        
-        # Cria uma pasta para salvar as imagens temporariamente, se não existir
-        if not os.path.exists('downloads'):
-            os.makedirs('downloads')
-            
-        file_path = os.path.join('downloads', f'{photo_file.file_id}.jpg')
-        
-        # Baixa a imagem
-        await photo_file.download_to_drive(file_path)
-        
-        await context.bot.send_message(chat_id=chat_id, text="Imagem recebida! Classificando...")
+async def test_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Executa o teste no modelo treinado e envia as métricas."""
+    await update.message.reply_text("Avaliando o modelo no conjunto de teste...")
+    
+    report_str, matriz_path = rn.gerar_metricas_teste()
+    
+    await update.message.reply_markdown_v2(report_str)
+    
+    if matriz_path:
+        await context.bot.send_photo(chat_id=update.effective_chat.id, photo=open(matriz_path, 'rb'))
+        os.remove(matriz_path)
 
-        # Chama a função de classificação
-        prediction = PyTorchRN.classificar_imagem_telegram(file_path)
-        
-        # Envia o resultado de volta
-        await context.bot.send_message(chat_id=chat_id, text=prediction)
+async def handle_image(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Processa e classifica a imagem recebida."""
+    photo_file = await update.message.photo[-1].get_file()
+    
+    file_path = f"temp_{photo_file.file_id}.jpg"
+    await photo_file.download_to_drive(file_path)
+    
+    await update.message.reply_text("Recebi sua imagem. Classificando...")
 
-        # Opcional: apaga a imagem após a classificação
-        os.remove(file_path)
+    prediction_md = rn.classificar_imagem(file_path)
+    
+    await update.message.reply_markdown(prediction_md)
+    
+    os.remove(file_path)
 
-    except Exception as e:
-        logging.error(f"Erro ao processar a imagem: {e}")
-        await context.bot.send_message(chat_id=chat_id, text=f"Ocorreu um erro ao processar sua imagem: {e}")
+def main():
+    """Inicia o bot."""
+    TOKEN = "7538688960:AAGJjkFnHu0AMLUeGDG6DmhzUVSD68abFgo"
+    
+    application = ApplicationBuilder().token(TOKEN).build()
 
+    application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("train", train_command))
+    application.add_handler(CommandHandler("test", test_command))
+    application.add_handler(MessageHandler(filters.PHOTO, handle_image))
+
+    print("Bot iniciado... Pressione Ctrl+C para parar.")
+    application.run_polling()
 
 if __name__ == '__main__':
-    if TELEGRAM_BOT_TOKEN == "SEU_TOKEN_AQUI":
-        print("ERRO: Por favor, adicione o token do seu bot no arquivo telegram_bot.py")
-    else:
-        application = ApplicationBuilder().token(TELEGRAM_BOT_TOKEN).build()
-        
-        # Adiciona os handlers
-        application.add_handler(CommandHandler('start', start))
-        application.add_handler(CommandHandler('treinar', treinar_command))
-        application.add_handler(MessageHandler(filters.PHOTO, image_handler))
-        
-        print("Bot iniciado! Pressione Ctrl+C para parar.")
-        
-        # Inicia o bot
-        application.run_polling()
+    main()
