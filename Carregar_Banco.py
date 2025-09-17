@@ -9,7 +9,7 @@ import shutil
 # 1. Cole o link da sua pasta COMPARTILHADA do Google Drive aqui.
 #    Lembre-se: em "Acesso geral", deve estar como "Qualquer pessoa com o link".
 
-google_drive_url = "https://drive.google.com/drive/folders/17WIevxTC0ubQfR7DLpP_KxmLTZsyDe6k?usp=drive_link"
+google_drive_url = "https://drive.google.com/drive/folders/1UxUpQXu-y1FFEnrcNfAEWz0QZiYG-m2l?usp=sharing"
 
 # 2. Nome da pasta que será criada localmente para armazenar as imagens.
 #    É esta pasta que você deve apagar se precisar baixar os dados novamente.
